@@ -1,5 +1,6 @@
 # Core packages
 import os
+import six
 import socket
 import subprocess
 from time import sleep
@@ -58,7 +59,12 @@ def system_dependencies():
     # Install system dependencies for this layer
     status_set('maintenance', '[wsgi] Setting up dependencies')
     log('[wsgi] Installing system dependencies')
-    apt_install(['python3-pip', 'python-setuptools', 'circus', 'gunicorn3'])
+    packages = ['python-setuptools', 'circus']
+    if six.PY2:
+        packages.extend(['python-pip', 'gunicorn'])
+    else:
+        packages.extend(['python3-pip', 'gunicorn3'])
+    apt_install(packages)
 
     # Create user
     log('[wsgi] Ensuring the user {} exists'.format(layer_config['username']))
@@ -107,12 +113,16 @@ def start_application_service():
 
     cache_dir = config('pip_cache_dir')
 
+    pipcmd = 'pip3'
+    if six.PY2:
+        pipcmd = 'pip'
+
     if os.path.isfile('requirements.txt'):
         if cache_dir:
             log('[wsgi] Installing pip dependencies from {}'.format(cache_dir))
             subprocess.check_call(
                 [
-                    'pip3', 'install',
+                    pipcmd, 'install',
                     '--no-index',
                     '--find-links', cache_dir,
                     '--requirement', 'requirements.txt',
@@ -123,7 +133,7 @@ def start_application_service():
         else:
             log('[wsgi] Installing pip dependencies from PyPi')
             subprocess.check_call(
-                ['pip3', 'install', '--requirement', 'requirements.txt'],
+                [pipcmd, 'install', '--requirement', 'requirements.txt'],
                 cwd=layer_config['application_root'],
                 env=dict(LC_ALL='C.UTF-8', **get_env(env_file))
             )
